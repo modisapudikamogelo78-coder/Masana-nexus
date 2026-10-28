@@ -10,6 +10,15 @@ calibrates itself, forecasts, and runs the Nexus policy against the live state.
     open http://localhost:8000              # live twin dashboard
     open http://localhost:8000/replay       # pitch replay: scenarios A/B/C, baseline vs Nexus side by side
 
+## Deploy the demo on Render
+1. Push this repository to GitHub.
+2. In Render, choose **New +** > **Blueprint**, then connect this GitHub repository.
+3. Render reads `render.yaml` to build and start the web service. Open its `onrender.com` URL when the deploy is live.
+
+The demo starts the site emulator alongside the twin, so the dashboard receives simulated telemetry.
+For a real site, replace the emulator with a trusted telemetry source and deploy on an always-on service.
+The free Render plan may spin down after inactivity, so it is suitable for trying the demo, not continuous operation.
+
 ## What makes it a twin (not a simulation)
 - Telemetry in over HTTP: POST /api/telemetry (any device can send it)
 - State estimation: physics prediction fused with the SoC sensor every sample
