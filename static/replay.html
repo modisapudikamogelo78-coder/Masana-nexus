@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>
+<title>Nexus Site Replay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control-room console. Header + controls, two site panels side by side, shared SoC chart with state strips, decision receipts, KPI table. Amber = Nexus, steel blue = baseline. */
+:root {
+  --bg: #16140F; --panel: #1F1C15; --panel2: #29251B; --line: #363124;
+  --fg: #EDE7D6; --muted: #A39B86; --nexus: #F2A93B; --nexus-ink: #1C1A15; --base: #8C98A4;
+  --good: #9CC25E; --bad: #FF7A5F; --warn: #E3B341; --info: #7FB3D5;
+  --f-display: 'Bricolage Grotesque', 'Arial Narrow', Arial, sans-serif;
+  --f-body: 'Public Sans', 'Segoe UI', Arial, sans-serif;
+  --f-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #EEE9DD; --panel: #F6F2E8; --panel2: #E6E0D1; --line: #CFC8B6;
+  --fg: #1C1A15; --muted: #5F594C; --nexus: #C77700; --nexus-ink: #FFFFFF; --base: #56606A;
+  --good: #4D6A2A; --bad: #B0301B; --warn: #8A5A00; --info: #2E6A8E; color-scheme: light; } }
+:root[data-theme="light"] {
+  --bg: #EEE9DD; --panel: #F6F2E8; --panel2: #E6E0D1; --line: #CFC8B6;
+  --fg: #1C1A15; --muted: #5F594C; --nexus: #C77700; --nexus-ink: #FFFFFF; --base: #56606A;
+  --good: #4D6A2A; --bad: #B0301B; --warn: #8A5A00; --info: #2E6A8E; color-scheme: light; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.4;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 48px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+h1, h2, h3 { margin: 0; font-weight: 500; }
+.display { font-family: var(--f-display); letter-spacing: -0.02em; font-weight: 700; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+header.top { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+header.top h1 { font-size: 30px; line-height: 1.1; }
+header.top p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.badge { display: inline-block; font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--warn); color: var(--warn); padding: 3px 8px; border-radius: 2px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tab { flex: 1 1 220px; text-align: left; background: var(--panel); border: 1px solid var(--line); color: var(--fg); border-radius: 2px; padding: 10px 12px; cursor: pointer; font: inherit; }
+.tab b { display: block; font-weight: 600; }
+.tab span { color: var(--muted); font-size: 13px; }
+.tab[aria-pressed="true"] { border-color: var(--nexus); box-shadow: inset 0 0 0 1px var(--nexus); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 10px 12px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
+button.btn { font: inherit; font-weight: 500; background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 2px; padding: 8px 12px; cursor: pointer; }
+button.btn.primary { background: var(--nexus); color: var(--nexus-ink); border-color: var(--nexus); font-weight: 600; }
+button.btn:focus-visible, .tab:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+.clock { font-family: var(--f-mono); font-size: 26px; min-width: 84px; }
+.scrub { flex: 1 1 260px; min-width: 0; accent-color: var(--nexus); }
+select, input[type=number] { font: inherit; background: var(--panel2); color: var(--fg); border: 1px solid var(--line); border-radius: 2px; padding: 7px 8px; }
+.sites { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.site { background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.site.nex { border-color: var(--nexus); }
+.site h2 { font-size: 20px; }
+.site .sub { color: var(--muted); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-mono); font-size: 12px; border: 1px solid var(--line); border-radius: 2px; padding: 3px 9px; background: var(--panel2); }
+.chip.good { border-color: var(--good); color: var(--good); } .chip.bad { border-color: var(--bad); color: var(--bad); }
+.chip.warn { border-color: var(--warn); color: var(--warn); } .chip.info { border-color: var(--info); color: var(--info); }
+.reads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.read { background: var(--panel2); border-radius: 2px; padding: 8px 10px; min-width: 0; }
+.read small { display: block; color: var(--muted); font-size: 12px; }
+.read b { font-family: var(--f-mono); font-size: 20px; font-weight: 500; }
+.read b i { font-style: normal; font-size: 12px; color: var(--muted); margin-left: 3px; }
+.svc { display: flex; flex-direction: column; gap: 6px; }
+.svc div { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 6px 10px; border-radius: 2px; background: var(--panel2); }
+.svc em { font-style: normal; font-family: var(--f-mono); font-size: 12px; padding: 2px 8px; border-radius: 2px; border: 1px solid var(--line); }
+.svc em.good { color: var(--good); border-color: var(--good); } .svc em.bad { color: var(--bad); border-color: var(--bad); } .svc em.warn { color: var(--warn); border-color: var(--warn); }
+.jobs { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.jobs div { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line); }
+.jobs span.st { font-family: var(--f-mono); font-size: 12px; text-align: right; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card h2 { font-size: 20px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 4px; margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+.legend i.sq { height: 10px; width: 10px; border-radius: 2px; }
+svg.chart { width: 100%; height: auto; display: block; }
+svg.chart text { font-family: var(--f-mono); font-size: 11px; fill: var(--muted); }
+.two { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+.log { display: flex; flex-direction: column; gap: 8px; max-height: 470px; overflow-y: auto; padding-right: 4px; }
+.rc { border: 1px solid var(--line); border-left: 4px solid var(--nexus); border-radius: 2px; padding: 8px 10px; background: var(--panel2); font-size: 13.5px; }
+.rc.new { box-shadow: 0 0 0 1px var(--nexus); }
+.rc .h { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.rc .h span.t { font-family: var(--f-mono); color: var(--nexus); font-weight: 500; }
+.rc p { margin: 3px 0 0; color: var(--muted); }
+.rc .meta { font-family: var(--f-mono); font-size: 12px; margin-top: 4px; color: var(--fg); }
+.ev { font-size: 13px; padding: 4px 0; border-bottom: 1px dashed var(--line); display: flex; gap: 10px; }
+.ev .t { font-family: var(--f-mono); color: var(--base); }
+.empty { color: var(--muted); font-size: 13.5px; padding: 8px 0; }
+table.kpi { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.kpi th, table.kpi td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.kpi th { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+table.kpi td.n { font-family: var(--f-mono); white-space: nowrap; }
+table.kpi td.d small { display: block; color: var(--muted); font-size: 12px; }
+.tag { font-family: var(--f-mono); font-size: 12px; padding: 2px 7px; border-radius: 2px; border: 1px solid var(--line); white-space: nowrap; }
+.tag.good { color: var(--good); border-color: var(--good); } .tag.bad { color: var(--bad); border-color: var(--bad); } .tag.same { color: var(--muted); }
+.scroll-x { overflow-x: auto; }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 12px 14px; }
+summary { cursor: pointer; font-weight: 600; }
+details table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; }
+details td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+details td:first-child { width: 150px; color: var(--muted); }
+.note { font-size: 13px; color: var(--muted); }
+@media (max-width: 900px) { .sites, .two { grid-template-columns: 1fr; } .reads { grid-template-columns: repeat(2, 1fr); } header.top h1 { font-size: 26px; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1 class="display">Masana Nexus <span style="color:var(--nexus)">Site Replay</span></h1>
+      <p>One weak-grid site, one trace, two controllers. The baseline uses fixed thresholds and first-in-first-out AI jobs. Nexus predicts, protects priority services and explains every action.</p>
+    </div>
+    <span style="display:flex;gap:8px;flex-wrap:wrap"><span class="badge">Simulation · not field data</span><a class="badge" href="/" style="text-decoration:none;color:var(--nexus);border-color:var(--nexus)">← Live twin</a></span>
+  </header>
+
+  <div class="tabs" id="tabs" role="group" aria-label="Scenario"></div>
+
+  <div class="controls" id="controls">
+    <button class="btn primary" id="bPlay" type="button">Play</button>
+    <button class="btn" id="bNext" type="button" title="Jump to the next Nexus decision">Next decision</button>
+    <button class="btn" id="bRestart" type="button">Restart</button>
+    <button class="btn" id="bEnd" type="button">Jump to result</button>
+    <div class="clock" id="clock" aria-live="off">16:00</div>
+    <input class="scrub" id="scrub" type="range" min="0" max="599" step="1" value="0" aria-label="Time through the replay">
+    <label class="muted" for="speed">Speed</label>
+    <select id="speed"><option value="10">Slow</option><option value="20" selected>Normal</option><option value="60">Fast</option></select>
+  </div>
+
+  <section class="sites">
+    <article class="site" id="pBase" aria-label="Baseline controller"></article>
+    <article class="site nex" id="pNex" aria-label="Masana Nexus controller"></article>
+  </section>
+
+  <section class="card">
+    <h2>Battery charge, same trace</h2>
+    <div class="legend" id="legend1"></div>
+    <svg class="chart" id="chart" viewBox="0 0 1000 340" role="img" aria-label="Battery state of charge for the baseline and Nexus over the replay, with service state strips below"></svg>
+    <div class="legend" id="legend2"></div>
+  </section>
+
+  <section class="two">
+    <div class="card">
+      <h2>Nexus decision receipts</h2>
+      <p class="note" style="margin:0">Each receipt records what changed, why, the forecast, and the measured result 30 minutes later.</p>
+      <div class="log" id="rcpts"></div>
+    </div>
+    <div class="card">
+      <h2>Baseline events</h2>
+      <p class="note" style="margin:0">The baseline reacts to fixed thresholds and logs no reasons.</p>
+      <div class="log" id="bev"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Result: full run, same trace</h2>
+    <div class="scroll-x"><table class="kpi" id="kpi"></table></div>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <label for="price" class="muted">Diesel price assumption (R per litre)</label>
+      <input id="price" type="number" min="0" step="0.5" value="24" style="width:90px">
+      <span id="cost" class="mono"></span>
+    </div>
+    <p class="note" style="margin:0" id="kpiNote"></p>
+  </section>
+
+  <details>
+    <summary>Assumptions and method</summary>
+    <table id="assump"></table>
+    <p class="note">Every figure on this page is a simulation output under these assumptions. Savings, battery life and payback must be validated in shadow mode and a pilot before any field claim.</p>
+  </details>
+</div>
+
+<script>
+'use strict';
+/* Masana Nexus PoC: deterministic weak-grid site simulator.
+   One trace, two controllers: static-threshold/FIFO baseline vs Nexus.
+   All numbers are SIMULATION outputs under the assumptions in SIM.ASSUMPTIONS. */
+const SIM = (() => {
+  const DT = 1 / 60, CAP = 24, HARD = 0.10, RESUME = 0.15, BMAX = 8, EFF = 0.95;
+  const GEN_KW = 6, GRID_KW = 8, L_PER_KWH = 0.40, GPU_KW = 2.5, N = 600, T0 = 16;
+  const SHARE = { crit: 0.25, std: 0.45, embb: 0.30 };
+  const RESERVE = 0.25, STALE_MIN = 5;
+  const INF_PER_MIN = 2400; // inferences per GPU-minute (assumption, same for both)
+
+  const JOBS = [
+    { id: 'J1', name: 'Language transcription', arr: 0,   dur: 30, dl: 420, reloc: true  },
+    { id: 'J2', name: 'Crop diagnostics',       arr: 90,  dur: 45, dl: 390, reloc: false },
+    { id: 'J3', name: 'Video analytics',        arr: 105, dur: 60, dl: 300, reloc: true  },
+    { id: 'J4', name: 'Fraud-model scoring',    arr: 150, dur: 30, dl: 240, reloc: false },
+    { id: 'J5', name: 'Document OCR',           arr: 180, dur: 45, dl: 465, reloc: true  },
+    { id: 'J6', name: 'Model refresh',          arr: 210, dur: 60, dl: 510, reloc: false }
+  ];
+
+  const SCENARIOS = {
+    A: { key: 'A', name: 'Evening outage', blurb: 'Grid drops at 17:42 as cloud cuts solar. Generator has fuel.',
+         soc0: 0.80, fuel: 60, grid: [102, 390], stale: null },
+    B: { key: 'B', name: 'Low-fuel remote site', blurb: 'Grid already lost since 16:40, 8 L of diesel left. Protect MoMo and USSD to the end.',
+         soc0: 0.55, fuel: 8, grid: [40, 600], stale: null },
+    C: { key: 'C', name: 'Sensor dropout', blurb: 'Battery telemetry freezes for two hours mid-outage. Tests the safe fallback.',
+         soc0: 0.80, fuel: 60, grid: [102, 420], stale: [240, 360] }
+  };
+
+  const hr = m => T0 + m / 60;
+  const solarClear = m => 10 * Math.max(0, Math.sin(Math.PI * (hr(m) - 6.5) / 12));
+  const cloudTrue = m => Math.min(1, (m < 102 ? 1 : 0.45) * (1 + 0.12 * Math.sin(m / 7)));
+  const cloudBase = m => (m < 102 ? 1 : 0.45);
+  const loadProfile = m => 2.8 + 1.4 * Math.exp(-Math.pow((hr(m) - 19.5) / 1.6, 2));
+  const loadTrue = m => loadProfile(m) * (1 + 0.05 * Math.sin(m / 5.3) + 0.03 * Math.sin(m / 2.1));
+  const ambient = m => 34 - 0.9 * (hr(m) - 16);
+  const gridUpAt = (sc, m) => !(m >= sc.grid[0] && m < sc.grid[1]);
+  const fmt = m => { const t = Math.round(m) + T0 * 60; const h = Math.floor(t / 60) % 24; const mm = t % 60; return String(h).padStart(2, '0') + ':' + String(mm).padStart(2, '0'); };
+
+  // Forecast the battery forward with a plan. Grid assumed down for the horizon (conservative).
+  function forecast(obs, plan, horizon) {
+    let soc = obs.soc; let tts = horizon; let soc30 = soc;
+    for (let k = 1; k <= horizon; k++) {
+      const m = obs.m + k;
+      let L = loadProfile(m);
+      let load = L * SHARE.crit;
+      if (!plan.critOnly) load += L * SHARE.std + L * SHARE.embb * (1 - (plan.throttle || 0));
+      if (plan.gpu) load += GPU_KW;
+      const solar = solarClear(m) * obs.cloud;
+      let supply = solar + (plan.gen ? GEN_KW : 0);
+      const net = supply - load;
+      if (net >= 0) soc = Math.min(1, soc + Math.min(net, BMAX) * DT * EFF / CAP);
+      else soc -= (-net) * DT / (EFF * CAP);
+      if (k === 30) soc30 = soc;
+      if (soc <= RESERVE && tts === horizon) tts = k;
+    }
+    return { tts, soc30 };
+  }
+
+  function newJobs() { return JOBS.map(j => ({ ...j, rem: j.dur, done: null, moved: false, started: false })); }
+
+  function run(scKey, policy) {
+    const sc = SCENARIOS[scKey];
+    const jobs = newJobs();
+    const S = { soc: sc.soc0, fuel: sc.fuel, siteUp: true, tb: ambient(0), gen: false, job: null,
+                throttle: 0, critOnly: false, fallback: false, gridSeenDown: false, lastGood: null,
+                log: [], pend: [] };
+    const rec = { m: [], soc: [], solar: [], load: [], gpu: [], gen: [], grid: [], up: [], thr: [], crit: [], job: [], tb: [], fuel: [], stale: [] };
+    const K = { genMin: 0, genKWh: 0, solarAvail: 0, solarUsed: 0, gpuKWh: 0, blackoutMin: 0, outMin: 0,
+                critUpOut: 0, stdUpOut: 0, embbOut: 0, stress: 0, minSoc: 1, below20: 0, peakTb: 0, thrMin: 0, critOnlyMin: 0 };
+    let prevSoc = S.soc;
+
+    for (let m = 0; m < N; m++) {
+      const gridUp = gridUpAt(sc, m);
+      const stale = !!(sc.stale && m >= sc.stale[0] && m < sc.stale[1]);
+      const solarT = solarClear(m) * cloudTrue(m);
+      const Lt = loadTrue(m);
+      // observation (frozen when stale)
+      let obs;
+      if (stale && S.lastGood) obs = { ...S.lastGood, m, age: m - S.lastGood.m, fuel: S.fuel };
+      else { obs = { m, soc: S.soc, solar: solarT, load: Lt, gridUp, cloud: cloudBase(m) * (solarClear(m) > 0.5 ? solarT / (solarClear(m) * cloudBase(m)) : 1), fuel: S.fuel, age: 0, gpu: S.job ? GPU_KW : 0 };
+            obs.cloud = Math.max(0.2, Math.min(1, obs.cloud));
+            S.lastGood = { ...obs }; }
+      const cmd = policy === 'base' ? decideBase(S, jobs, obs, m) : decideNexus(S, jobs, obs, m, sc);
+      S.job = cmd.job; S.gen = cmd.gen; S.throttle = cmd.throttle; S.critOnly = cmd.critOnly;
+
+      // ---------- physical dispatch ----------
+      let crit = 0, std = 0, embb = 0, gpu = 0;
+      if (S.siteUp) {
+        crit = Lt * SHARE.crit;
+        std = S.critOnly ? 0 : Lt * SHARE.std;
+        embb = S.critOnly ? 0 : Lt * SHARE.embb * (1 - S.throttle);
+        gpu = (cmd.job && !S.critOnly) ? GPU_KW : 0;
+      }
+      let need = crit + std + embb + gpu;
+      const genOn = S.gen && S.fuel > 0;
+      const supply = solarT + (gridUp ? GRID_KW : 0) + (genOn ? GEN_KW : 0);
+      let pc = 0, pd = 0, served = S.siteUp;
+      if (S.siteUp) {
+        const net = supply - need;
+        if (net >= 0) {
+          pc = Math.min(net, BMAX, (1 - S.soc) * CAP / (DT * EFF));
+          S.soc += pc * DT * EFF / CAP;
+        } else {
+          pd = -net;
+          const maxD = Math.min(BMAX, (S.soc - HARD) * CAP * EFF / DT);
+          if (pd <= maxD + 1e-9) S.soc -= pd * DT / (EFF * CAP);
+          else { served = false; S.siteUp = false; crit = std = embb = gpu = 0; need = 0; pd = 0;
+                 pc = Math.min(supply, BMAX, (1 - S.soc) * CAP / (DT * EFF)); S.soc += pc * DT * EFF / CAP;
+                 S.log.push({ m, kind: 'event', text: 'Battery low-voltage disconnect: site down' }); }
+        }
+      } else {
+        pc = Math.min(supply, BMAX, (1 - S.soc) * CAP / (DT * EFF)); S.soc += pc * DT * EFF / CAP;
+        if (S.soc >= RESUME) { S.siteUp = true; S.log.push({ m, kind: 'event', text: 'Site back up' }); }
+      }
+      // source accounting
+      const used = need + pc;
+      const fromSolar = Math.min(solarT, used);
+      let rem = used - fromSolar;
+      const fromGrid = Math.min(gridUp ? GRID_KW : 0, rem); rem -= fromGrid;
+      const fromGen = genOn ? Math.min(GEN_KW, rem) : 0;
+      if (genOn && fromGen >= 0) { S.fuel = Math.max(0, S.fuel - fromGen * DT * L_PER_KWH); K.genKWh += fromGen * DT; K.genMin += 1; }
+      K.solarAvail += solarT * DT; K.solarUsed += fromSolar * DT;
+
+      // job progress
+      const cur = cmd.job ? jobs.find(j => j.id === cmd.job) : null;
+      if (cur) {
+        if (served && gpu > 0) { cur.rem -= 1; cur.started = true; K.gpuKWh += GPU_KW * DT;
+          if (cur.rem <= 0) { cur.done = m + 1; S.log.push({ m, kind: 'job', text: cur.name + ' complete' }); } }
+        else if (!served && cur.rem < cur.dur) { cur.rem = cur.dur; /* abrupt power loss: progress lost */
+          S.log.push({ m, kind: 'event', text: cur.name + ' interrupted by power loss: restart from zero' }); }
+      }
+      // thermal + stress
+      const pb = pc > 0 ? pc : pd;
+      S.tb += (ambient(m) + 1.1 * pb - S.tb) * 0.2;
+      K.peakTb = Math.max(K.peakTb, S.tb);
+      K.stress += Math.abs(S.soc - prevSoc) * 100 * (1 + 3 * Math.max(0, 0.5 - S.soc));
+      prevSoc = S.soc;
+      K.minSoc = Math.min(K.minSoc, S.soc);
+      if (S.soc < 0.20) K.below20++;
+      if (!served) K.blackoutMin++;
+      if (S.throttle > 0 && !S.critOnly) K.thrMin++;
+      if (S.critOnly) K.critOnlyMin++;
+      if (!gridUp) { K.outMin++; if (served) { K.critUpOut++; if (!S.critOnly) { K.stdUpOut++; K.embbOut += (1 - S.throttle); } } }
+
+      rec.m.push(m); rec.soc.push(S.soc); rec.solar.push(solarT); rec.load.push(crit + std + embb);
+      rec.gpu.push(gpu); rec.gen.push(genOn ? 1 : 0); rec.grid.push(gridUp ? 1 : 0); rec.up.push(served ? 1 : 0);
+      rec.thr.push(S.throttle); rec.crit.push(S.critOnly ? 1 : 0); rec.job.push(cmd.job || ''); rec.tb.push(S.tb);
+      rec.fuel.push(S.fuel); rec.stale.push(stale ? 1 : 0);
+
+      // fill actual SoC for receipts
+      S.pend = S.pend.filter(p => { if (m >= p.at) { p.rcpt.actual30 = S.soc; return false; } return true; });
+    }
+    // job outcomes
+    let onTime = 0, late = 0, missed = 0, moved = 0, done = 0, inf = 0;
+    for (const j of jobs) {
+      if (j.moved) moved++;
+      else if (j.done !== null) { done++; inf += j.dur * INF_PER_MIN; if (j.done <= j.dl) onTime++; else late++; }
+      else missed++;
+    }
+    const kpi = {
+      genMin: K.genMin, genL: K.genKWh * L_PER_KWH, genKWh: K.genKWh,
+      critAvail: K.outMin ? K.critUpOut / K.outMin : 1, stdAvail: K.outMin ? K.stdUpOut / K.outMin : 1,
+      embbDelivered: K.outMin ? K.embbOut / K.outMin : 1, blackoutMin: K.blackoutMin, outMin: K.outMin,
+      minSoc: K.minSoc, below20: K.below20, stress: K.stress, peakTb: K.peakTb,
+      thrMin: K.thrMin, critOnlyMin: K.critOnlyMin,
+      jobsDone: done, jobsOnTime: onTime, jobsLate: late, jobsMissed: missed, jobsMoved: moved,
+      deadlineMiss: late + missed, gpuKWh: K.gpuKWh, infK: inf / 1000, kWhPer1k: inf ? K.gpuKWh / (inf / 1000) : null,
+      renewUtil: K.solarAvail ? K.solarUsed / K.solarAvail : 0, solarKWh: K.solarUsed
+    };
+    return { rec, kpi, log: S.log, jobs, sc };
+  }
+
+  // ---------------- controllers ----------------
+  function decideBase(S, jobs, obs, m) {
+    // static thresholds: start generator at 30%, stop at 60%; FIFO jobs; no service awareness
+    let gen = S.gen;
+    if (!gen && obs.soc <= 0.30 && S.fuel > 0 && !obs.gridUp) { gen = true; S.log.push({ m, kind: 'action', text: 'Generator start: SoC at ' + Math.round(obs.soc * 100) + '% (static 30% threshold)' }); }
+    if (gen && (obs.soc >= 0.60 || obs.gridUp || S.fuel <= 0)) { gen = false; S.log.push({ m, kind: 'action', text: 'Generator stop' + (S.fuel <= 0 ? ': out of fuel' : '') }); }
+    const q = jobs.filter(j => j.arr <= m && j.done === null && !j.moved).sort((a, b) => a.arr - b.arr);
+    const job = q.length ? q[0].id : null;
+    if (job && job !== S.job) S.log.push({ m, kind: 'job', text: 'FIFO: start ' + q[0].name });
+    return { job, gen, throttle: 0, critOnly: false };
+  }
+
+  function decideNexus(S, jobs, obs, m, sc) {
+    const log = (action, reason, conf, plBefore, plAfter, rollback) => {
+      const fb = forecast(obs, plBefore, 240), fa = forecast(obs, plAfter, 240);
+      const r = { m, kind: 'decision', action, reason, conf, ttsBefore: fb.tts, ttsAfter: fa.tts, pred30: fa.soc30, actual30: null, rollback };
+      S.log.push(r); S.pend.push({ at: m + 30, rcpt: r });
+    };
+    const plan = (job, thr, crit, gen) => ({ gpu: !!job, throttle: thr, critOnly: crit, gen });
+    const q = jobs.filter(j => j.arr <= m && j.done === null && !j.moved).sort((a, b) => a.dl - b.dl);
+    const prev = { job: S.job, thr: S.throttle, crit: S.critOnly, gen: S.gen };
+    const stale = obs.age >= STALE_MIN;
+
+    // ---- safe fallback when telemetry is stale ----
+    if (stale) {
+      const est = Math.max(0, S.lastGood.soc - 1.25 * (S.lastGood.load + (S.lastGood.gpu || 0)) * obs.age / 60 / (CAP * EFF));
+      if (!S.fallback) {
+        S.fallback = true;
+        log('Safe fallback: pause AI jobs, throttle video 50%', 'Battery telemetry stale for ' + obs.age + ' min; SoC unknown, estimating ' + Math.round(est * 100) + '% (worst case)', 0.30,
+            plan(prev.job, prev.thr, prev.crit, prev.gen), plan(null, 0.5, false, prev.gen), 'Resume normal control after fresh telemetry returns');
+      }
+      let gen = S.gen;
+      if (!gen && est <= 0.40 && S.fuel > 0 && !obs.gridUp) { gen = true;
+        log('Start generator on estimate', 'Estimated SoC ' + Math.round(est * 100) + '% is under the 40% fallback margin', 0.30,
+            plan(null, 0.5, false, false), plan(null, 0.5, false, true), 'Stop at estimated 60% or when telemetry returns'); }
+      if (gen && est >= 0.60) gen = false;
+      return { job: null, gen, throttle: 0.5, critOnly: false };
+    }
+    if (S.fallback) {
+      S.fallback = false;
+      S.log.push({ m, kind: 'decision', action: 'Telemetry restored: normal control', reason: 'Fresh SoC reading ' + Math.round(obs.soc * 100) + '%', conf: 0.9, ttsBefore: null, ttsAfter: null, pred30: null, actual30: null, rollback: 'Re-enter fallback if telemetry goes stale again' });
+    }
+
+    // ---- grid up: spend cheap energy, EDF job order, release all limits ----
+    if (obs.gridUp) {
+      if (S.gridSeenDown) { S.gridSeenDown = false;
+        S.log.push({ m, kind: 'decision', action: 'Grid restored: release limits, run deferred jobs', reason: 'Mains available; battery recharging', conf: 0.95, ttsBefore: null, ttsAfter: null, pred30: null, actual30: null, rollback: 'Re-apply limits on next outage' }); }
+      const job = q.length ? q[0].id : null;
+      return { job, gen: false, throttle: 0, critOnly: false };
+    }
+
+    // ---- grid down ----
+    if (!S.gridSeenDown) { S.gridSeenDown = true;
+      const f = forecast(obs, plan(S.job, 0, false, false), 240);
+      S.log.push({ m, kind: 'decision', action: 'Outage detected: energy-aware mode on', reason: 'Grid lost; reserve ' + (f.tts >= 240 ? '4 h+' : f.tts + ' min') + ' to the 25% floor at current plan', conf: 0.9, ttsBefore: f.tts, ttsAfter: f.tts, pred30: f.soc30, actual30: null, rollback: 'Release when grid returns' });
+      S.pend.push({ at: m + 30, rcpt: S.log[S.log.length - 1] }); }
+
+    const soc = obs.soc;
+    // choose job
+    let job = null; let chosen = null;
+    const ttsGpu = forecast(obs, plan(true, S.throttle, false, S.gen), 240).tts;
+    const energyRich = soc >= 0.50 && ttsGpu >= 180 && !S.gen;
+    for (const j of q) {
+      const slack = j.dl - m - j.rem; const urgent = slack <= 25;
+      const midRun = S.job === j.id && j.rem < j.dur;
+      let ok = energyRich || (urgent && soc >= RESERVE + 0.08) || (midRun && soc >= 0.40);
+      if (ok) { job = j.id; chosen = j; break; }
+      if (j.reloc && (urgent || forecast(obs, plan(null, S.throttle, false, S.gen), 240).tts < 120) && slack < 150) {
+        j.moved = true; j.movedAt = m;
+        log('Move ' + j.name + ' to a neighbouring site', 'Deadline in ' + (j.dl - m) + ' min and site reserve is short; flexible job can run elsewhere', 0.85,
+            plan(j.id, S.throttle, false, S.gen), plan(null, S.throttle, false, S.gen), 'Recall if the other site is unavailable');
+      }
+    }
+    if (prev.job && !job) {
+      const pj = jobs.find(j => j.id === prev.job);
+      if (pj && pj.done === null && !pj.moved) log('Pause ' + pj.name, 'Reserve below energy-rich threshold; job has slack of ' + (pj.dl - m - pj.rem) + ' min', 0.85, plan(prev.job, S.throttle, false, S.gen), plan(job, S.throttle, false, S.gen), 'Resume when grid returns or deadline slack runs out');
+    }
+    if (job && job !== prev.job) {
+      const urgent = chosen && (chosen.dl - m - chosen.rem) <= 25;
+      S.log.push({ m, kind: 'job', text: (urgent ? 'Deadline-driven start: ' : 'Energy-rich start: ') + chosen.name });
+    }
+    // throttle video
+    let thr = S.throttle;
+    const ttsNow = forecast(obs, plan(job, 0, false, S.gen), 240).tts;
+    if (thr === 0 && ttsNow < 100 && !S.gen) { thr = 0.5;
+      log('Throttle video 50%, keep MoMo/USSD at 100%', 'Reserve forecast ' + ttsNow + ' min to the 25% floor', 0.85, plan(job, 0, false, S.gen), plan(job, 0.5, false, S.gen), 'Release when forecast exceeds 150 min or grid returns'); }
+    else if (thr > 0 && ttsNow > 150) { thr = 0; S.log.push({ m, kind: 'event', text: 'Video throttle released' }); }
+    // generator
+    let gen = S.gen; let crit = S.critOnly;
+    const ttsThr = forecast(obs, plan(job, thr, false, false), 240).tts;
+    if (!gen && S.fuel > 0 && (soc <= RESERVE || ttsThr < 40)) { gen = true; crit = false;
+      log('Recommend generator start', 'Reserve ' + Math.round(soc * 100) + '% with ' + ttsThr + ' min to floor even after throttling; fuel ' + S.fuel.toFixed(1) + ' L', 0.85,
+          plan(job, thr, false, false), plan(job, thr, false, true), 'Stop at 55% SoC or when grid returns'); }
+    if (gen && (soc >= 0.55 || S.fuel <= 0)) { gen = false; S.log.push({ m, kind: 'action', text: 'Generator stop' + (S.fuel <= 0 ? ': out of fuel' : ': reserve restored') }); }
+    // critical-only mode: no fuel and low reserve
+    if (!gen && S.fuel <= 0.01 && soc <= 0.27 && !crit) { crit = true;
+      log('Critical-only mode: MoMo, USSD and voice only', 'No fuel left and SoC ' + Math.round(soc * 100) + '%; standard and video traffic shed to keep priority services up', 0.80,
+          plan(job, thr, false, false), plan(null, thr, true, false), 'Release when grid returns or SoC passes 35%'); }
+    if (crit && (soc >= 0.35 || obs.gridUp)) { crit = false; S.log.push({ m, kind: 'event', text: 'Critical-only mode released' }); }
+    if (crit) job = null;
+    if (gen && job && !(chosen && (chosen.dl - m - chosen.rem) <= 25)) job = null;
+    return { job, gen, throttle: thr, critOnly: crit };
+  }
+
+  const ASSUMPTIONS = [
+    ['Site', 'Solar 10 kWp, battery 24 kWh usable, generator 6 kW, grid import 8 kW, one 2.5 kW edge GPU node'],
+    ['Radio load', '2.8 kW base rising to 4.2 kW at 19:30; 25% priority (MoMo, USSD, voice), 45% standard, 30% video'],
+    ['Weather', 'Clear-sky solar curve; cloud cuts output to 45% from 17:42, with flicker'],
+    ['Battery', '95% each way, 10% low-voltage cut-off, resumes at 15%; Nexus holds a 25% reserve floor'],
+    ['Generator', '0.40 litres per kWh generated; fuel tank differs by scenario'],
+    ['Baseline', 'Generator on at 30% SoC and off at 60%; AI jobs first-in-first-out; no service-class awareness; trusts last battery reading'],
+    ['Nexus', 'Forecasts reserve time, throttles video, defers or moves flexible AI jobs, protects priority traffic, logs every decision'],
+    ['AI jobs', 'Six jobs, 2.4k inferences per GPU-minute; a job cut by sudden power loss restarts from zero, a paused job resumes'],
+    ['Battery stress', 'A proxy: charge swing weighted up when SoC is low. Not calibrated to cell data'],
+    ['Not modelled', 'Real RAN traffic, O-RAN interfaces, fuel price changes, GPU power capping, second-site capacity']
+  ];
+
+  function reserveMin(m, soc, p) { return forecast({ m, soc, cloud: cloudBase(m) }, { gpu: p.gpu, throttle: p.thr, critOnly: p.crit, gen: p.gen }, 240).tts; }
+
+  return { run, reserveMin, L_PER_KWH, SCENARIOS, JOBS, N, T0, fmt, hr, CAP, ASSUMPTIONS, RESERVE };
+})();
+
+
+</script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const N = SIM.N;
+  const st = { sc: 'A', m: 0, playing: false, last: 0, R: null, shownRc: -1 };
+  const COL = { good: 'var(--good)', bad: 'var(--bad)', warn: 'var(--warn)', base: 'var(--base)', nex: 'var(--nexus)' };
+  const pct = v => Math.round(v * 100);
+  const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+
+  // ---------- tabs ----------
+  function buildTabs() {
+    $('tabs').innerHTML = Object.values(SIM.SCENARIOS).map(s =>
+      '<button class="tab" type="button" data-k="' + s.key + '" aria-pressed="' + (s.key === st.sc) + '"><b>' + s.key + ' · ' + s.name + '</b><span>' + s.blurb + '</span></button>').join('');
+    $('tabs').querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => setScenario(b.dataset.k)));
+  }
+  function setScenario(k) {
+    st.sc = k; st.m = 0; st.playing = false; $('bPlay').textContent = 'Play';
+    st.R = { base: SIM.run(k, 'base'), nex: SIM.run(k, 'nexus') };
+    buildTabs(); buildChart(); buildKpi(); frame(true);
+  }
+
+  // ---------- chart ----------
+  const W = 1000, L = 44, Rr = 12, T = 12, PH = 220, SH = 16;
+  const xs = m => L + (m / (N - 1)) * (W - L - Rr);
+  const ys = v => T + (1 - v) * PH;
+  const STATE_COL = ['var(--good)', 'var(--warn)', 'var(--nexus)', 'var(--bad)'];
+  function stateOf(rec, i) { return !rec.up[i] ? 3 : rec.crit[i] ? 2 : rec.thr[i] > 0 ? 1 : 0; }
+  function path(rec) { let d = ''; for (let i = 0; i < N; i++) d += (i ? 'L' : 'M') + xs(i).toFixed(1) + ' ' + ys(rec.soc[i]).toFixed(1); return d; }
+  function strip(rec, y, who) {
+    let out = ''; let s = 0; let cur = stateOf(rec, 0);
+    for (let i = 1; i <= N; i++) { const c = i < N ? stateOf(rec, i) : -1;
+      if (c !== cur) { out += '<rect x="' + xs(s).toFixed(1) + '" y="' + y + '" width="' + Math.max(0.6, xs(i) - xs(s)).toFixed(1) + '" height="' + SH + '" fill="' + STATE_COL[cur] + '"/>'; s = i; cur = c; } }
+    s = 0; cur = rec.gen[0];
+    for (let i = 1; i <= N; i++) { const c = i < N ? rec.gen[i] : -1;
+      if (c !== cur) { if (cur) out += '<rect x="' + xs(s).toFixed(1) + '" y="' + (y + SH - 5) + '" width="' + (xs(i) - xs(s)).toFixed(1) + '" height="5" fill="var(--info)" stroke="var(--bg)" stroke-width="0.5"/>'; s = i; cur = c; } }
+    return out + '<text x="' + (L - 6) + '" y="' + (y + 12) + '" text-anchor="end">' + who + '</text>';
+  }
+  function runs(arr, pred) { const r = []; let s = null; for (let i = 0; i <= N; i++) { const on = i < N && pred(arr[i]); if (on && s === null) s = i; if (!on && s !== null) { r.push([s, i]); s = null; } } return r; }
+  function buildChart() {
+    const b = st.R.base.rec, n = st.R.nex.rec; const sc = SIM.SCENARIOS[st.sc];
+    let g = '<defs><clipPath id="cp"><rect id="cpr" x="0" y="0" width="0" height="400"/></clipPath>' +
+      '<pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="3" height="6" fill="var(--warn)" opacity="0.25"/></pattern></defs>';
+    runs(n.grid, v => v === 0).forEach(r => g += '<rect x="' + xs(r[0]) + '" y="' + T + '" width="' + (xs(r[1] - 1) - xs(r[0])) + '" height="' + PH + '" fill="var(--bad)" opacity="0.08"/>');
+    runs(n.stale, v => v === 1).forEach(r => g += '<rect x="' + xs(r[0]) + '" y="' + T + '" width="' + (xs(r[1]) - xs(r[0])) + '" height="' + PH + '" fill="url(#hatch)"/>');
+    [0, 0.25, 0.5, 0.75, 1].forEach(v => g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + ys(v) + '" y2="' + ys(v) + '" stroke="var(--line)"/><text x="' + (L - 6) + '" y="' + (ys(v) + 4) + '" text-anchor="end">' + pct(v) + '%</text>');
+    for (let h = 0; h <= 10; h += 2) { const m = h * 60; if (m < N) g += '<text x="' + xs(m) + '" y="' + (T + PH + 14) + '" text-anchor="middle">' + SIM.fmt(m) + '</text>'; }
+    g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + ys(0.25) + '" y2="' + ys(0.25) + '" stroke="var(--nexus)" stroke-dasharray="5 4" opacity="0.8"/>';
+    g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + ys(0.30) + '" y2="' + ys(0.30) + '" stroke="var(--base)" stroke-dasharray="2 3" opacity="0.8"/>';
+    g += '<line x1="' + L + '" x2="' + (W - Rr) + '" y1="' + ys(0.10) + '" y2="' + ys(0.10) + '" stroke="var(--bad)" stroke-dasharray="3 3" opacity="0.7"/>';
+    g += '<path d="' + path(b) + '" fill="none" stroke="var(--base)" stroke-width="1.5" opacity="0.22"/><path d="' + path(n) + '" fill="none" stroke="var(--nexus)" stroke-width="1.5" opacity="0.22"/>';
+    g += '<g clip-path="url(#cp)"><path d="' + path(b) + '" fill="none" stroke="var(--base)" stroke-width="2.6"/><path d="' + path(n) + '" fill="none" stroke="var(--nexus)" stroke-width="2.8"/></g>';
+    const y0 = T + PH + 24;
+    g += '<g clip-path="url(#cp)">' + strip(b, y0, 'Base') + strip(n, y0 + SH + 6, 'Nexus') + '</g>';
+    g += '<line id="ph" x1="' + L + '" x2="' + L + '" y1="' + T + '" y2="' + (y0 + 2 * SH + 6) + '" stroke="var(--fg)" stroke-width="1.5"/>';
+    $('chart').setAttribute('viewBox', '0 0 ' + W + ' ' + (y0 + 2 * SH + 14));
+    $('chart').innerHTML = g;
+    $('legend1').innerHTML = '<span><i style="background:var(--base)"></i>Baseline charge</span><span><i style="background:var(--nexus)"></i>Nexus charge</span>' +
+      '<span><i style="background:var(--nexus);opacity:.8"></i>Nexus 25% reserve floor</span><span><i style="background:var(--base)"></i>Baseline generator trigger 30%</span>' +
+      '<span><i style="background:var(--bad)"></i>10% battery cut-off</span><span><i class="sq" style="background:var(--bad);opacity:.25"></i>Grid down</span>' +
+      (sc.stale ? '<span><i class="sq" style="background:var(--warn);opacity:.5"></i>Telemetry frozen</span>' : '');
+    $('legend2').innerHTML = '<span><i class="sq" style="background:var(--good)"></i>Full service</span><span><i class="sq" style="background:var(--warn)"></i>Video throttled</span>' +
+      '<span><i class="sq" style="background:var(--nexus)"></i>Critical-only (MoMo, USSD, voice)</span><span><i class="sq" style="background:var(--bad)"></i>Site down</span><span><i class="sq" style="background:var(--info)"></i>Generator running</span>';
+  }
+
+  // ---------- panels ----------
+  function jobState(P, j, i) {
+    const J = P.jobs.find(x => x.id === j.id);
+    if (j.arr > i) return ['Not arrived', 'muted'];
+    if (J.moved && J.movedAt <= i) return ['Moved to other site', 'info'];
+    if (J.done !== null && J.done <= i) return [J.done <= J.dl ? 'Done on time' : 'Done late', J.done <= J.dl ? 'good' : 'bad'];
+    if (P.rec.job[i] === j.id && P.rec.gpu[i] > 0) return ['Running 2.5 kW', 'warn'];
+    if (i > J.dl) return ['Missed deadline', 'bad'];
+    return ['Waiting', 'muted'];
+  }
+  function panel(el, P, who, i) {
+    const r = P.rec; const up = r.up[i]; const sc = SIM.SCENARIOS[st.sc];
+    const crit = r.crit[i], thr = r.thr[i];
+    const plan = { gpu: r.gpu[i] > 0, thr: thr, crit: !!crit, gen: !!r.gen[i] };
+    const res = SIM.reserveMin(i, r.soc[i], plan);
+    const stale = r.stale[i];
+    const svc = (name, s, c) => '<div><span>' + name + '</span><em class="' + c + '">' + s + '</em></div>';
+    const down = !up;
+    const row1 = svc('MoMo, USSD, voice', down ? 'Down' : 'Full', down ? 'bad' : 'good');
+    const row2 = svc('Standard data', down ? 'Down' : crit ? 'Shed' : 'Full', down ? 'bad' : crit ? 'warn' : 'good');
+    const row3 = svc('Video (eMBB)', down ? 'Down' : crit ? 'Shed' : thr > 0 ? 'Throttled 50%' : 'Full', down ? 'bad' : (crit || thr > 0) ? 'warn' : 'good');
+    const chips = '<span class="chip ' + (r.grid[i] ? 'good' : 'bad') + '">Grid ' + (r.grid[i] ? 'up' : 'down') + '</span>' +
+      '<span class="chip ' + (r.gen[i] ? 'info' : '') + '">Generator ' + (r.gen[i] ? 'running' : 'off') + '</span>' +
+      '<span class="chip ' + (up ? 'good' : 'bad') + '">Site ' + (up ? 'up' : 'DOWN') + '</span>' +
+      '<span class="chip ' + (stale ? 'warn' : '') + '">Telemetry ' + (stale ? 'STALE' : 'live') + '</span>';
+    const load = r.load[i] + r.gpu[i];
+    const resTxt = !up ? '–' : (res >= 240 ? '4 h+' : res + ' min');
+    el.innerHTML =
+      '<div><h2 class="display" style="color:' + (who === 'n' ? 'var(--nexus)' : 'var(--base)') + '">' + (who === 'n' ? 'Masana Nexus' : 'Baseline') + '</h2>' +
+      '<div class="sub">' + (who === 'n' ? 'Forecast, protect, defer, explain' : 'Fixed thresholds, first-in-first-out jobs') + '</div></div>' +
+      '<div class="chips">' + chips + '</div>' +
+      '<div class="reads">' +
+        '<div class="read"><small>Battery charge</small><b>' + pct(r.soc[i]) + '<i>%</i></b></div>' +
+        '<div class="read"><small>Solar</small><b>' + f1(r.solar[i]) + '<i>kW</i></b></div>' +
+        '<div class="read"><small>Site load</small><b>' + f1(load) + '<i>kW</i></b></div>' +
+        '<div class="read"><small>Battery temp</small><b>' + Math.round(r.tb[i]) + '<i>°C</i></b></div>' +
+        '<div class="read"><small>Time to 25% (model)</small><b>' + resTxt + '</b></div>' +
+        '<div class="read"><small>Diesel left</small><b>' + f1(r.fuel[i]) + '<i>L</i></b></div>' +
+      '</div>' +
+      '<div class="svc">' + row1 + row2 + row3 + '</div>' +
+      '<div class="jobs">' + SIM.JOBS.map(j => { const s = jobState(P, j, i); return '<div><span>' + j.name + (j.reloc ? '' : ' <small class="muted">(fixed site)</small>') + '</span><span class="st" style="color:' + (s[1] === 'muted' ? 'var(--muted)' : 'var(--' + s[1] + ')') + '">' + s[0] + '</span></div>'; }).join('') + '</div>';
+  }
+
+  // ---------- logs ----------
+  function rcptHtml(d, i, isNew) {
+    const f = t => t === null || t === undefined ? '' : (t >= 240 ? '4 h+' : t + ' min');
+    let meta = [];
+    if (d.ttsBefore !== null && d.ttsBefore !== d.ttsAfter) meta.push('Reserve forecast ' + f(d.ttsBefore) + ' → ' + f(d.ttsAfter));
+    if (d.pred30 !== null) meta.push('Charge in 30 min: forecast ' + pct(d.pred30) + '%, ' + (d.actual30 !== null && d.m + 30 <= i ? 'measured ' + pct(d.actual30) + '%' : 'measuring…'));
+    return '<div class="rc' + (isNew ? ' new' : '') + '"><div class="h"><span>' + d.action + '</span><span class="t">' + SIM.fmt(d.m) + '</span></div><p>' + d.reason + '</p>' +
+      '<div class="meta">Confidence ' + pct(d.conf) + '%' + (meta.length ? ' · ' + meta.join(' · ') : '') + '</div>' +
+      '<div class="meta muted">Rollback: ' + d.rollback + '</div></div>';
+  }
+  function logs(i) {
+    const dec = st.R.nex.log.filter(l => l.kind === 'decision' && l.m <= i);
+    $('rcpts').innerHTML = dec.length ? dec.slice().reverse().map((d, k) => rcptHtml(d, i, k === 0 && i - d.m < 20)).join('') : '<div class="empty">No decisions yet. Nexus acts only when the site needs it.</div>';
+    const ev = st.R.base.log.filter(l => l.kind !== 'job' && l.m <= i);
+    $('bev').innerHTML = ev.length ? ev.slice().reverse().map(l => '<div class="ev"><span class="t">' + SIM.fmt(l.m) + '</span><span>' + l.text + '</span></div>').join('') : '<div class="empty">Nothing yet.</div>';
+  }
+
+  // ---------- KPI ----------
+  const fmtN = (v, d) => v === null ? '–' : (Math.round(v * Math.pow(10, d)) / Math.pow(10, d)).toFixed(d);
+  function buildKpi() {
+    const b = st.R.base.kpi, n = st.R.nex.kpi;
+    const rows = [
+      ['Generator runtime', b.genMin, n.genMin, 0, ' min', -1, 'Fewer minutes of diesel'],
+      ['Diesel burned', b.genL, n.genL, 1, ' L', -1, 'Estimated at 0.40 L per kWh'],
+      ['MoMo, USSD, voice up during outage', b.critAvail * 100, n.critAvail * 100, 1, '%', 1, 'Priority class, operator-defined'],
+      ['Standard data up during outage', b.stdAvail * 100, n.stdAvail * 100, 1, '%', 1, 'Shed only in critical-only mode'],
+      ['Video delivered during outage', b.embbDelivered * 100, n.embbDelivered * 100, 1, '%', 1, 'The trade-off: Nexus throttles video to protect the reserve'],
+      ['Site blackout', b.blackoutMin, n.blackoutMin, 0, ' min', -1, 'Whole-site low-voltage disconnect'],
+      ['Lowest battery charge', b.minSoc * 100, n.minSoc * 100, 0, '%', 1, 'Higher is safer'],
+      ['Minutes below 20% charge', b.below20, n.below20, 0, ' min', -1, ''],
+      ['Battery stress proxy', b.stress, n.stress, 0, '', -1, 'Proxy, not calibrated to cell data'],
+      ['AI jobs meeting deadline (here or moved)', b.jobsOnTime + b.jobsMoved, n.jobsOnTime + n.jobsMoved, 0, ' of 6', 1, 'Nexus moved ' + n.jobsMoved + ' flexible job(s) to a neighbouring site; assumes that site has capacity'],
+      ['AI deadline misses', b.deadlineMiss, n.deadlineMiss, 0, '', -1, 'Late or never finished'],
+      ['GPU energy per 1,000 inferences', b.kWhPer1k, n.kWhPer1k, 4, ' kWh', -1, 'Includes energy wasted by interrupted jobs'],
+      ['Solar used on site', b.renewUtil * 100, n.renewUtil * 100, 1, '%', 1, 'Of solar available']
+    ];
+    $('kpi').innerHTML = '<tr><th>Measure</th><th>Baseline</th><th>Nexus</th><th>Change</th></tr>' + rows.map(r => {
+      const [name, bv, nv, d, u, dir, note] = r; const diff = nv - bv;
+      const same = Math.abs(diff) < Math.pow(10, -d) * 0.5;
+      const good = dir * diff > 0; const word = same ? 'same' : good ? 'better' : 'worse';
+      const rel = bv !== 0 && !same && u.indexOf('%') < 0 ? ' (' + (diff > 0 ? '+' : '−') + Math.abs(Math.round(diff / bv * 100)) + '%)' : '';
+      const abs = same ? '0' : (diff > 0 ? '+' : '−') + fmtN(Math.abs(diff), d) + rel;
+      return '<tr><td class="d">' + name + (note ? '<small>' + note + '</small>' : '') + '</td><td class="n">' + fmtN(bv, d) + u + '</td><td class="n">' + fmtN(nv, d) + u + '</td><td class="n"><span class="tag ' + (same ? 'same' : good ? 'good' : 'bad') + '">' + word + '</span> ' + abs + '</td></tr>';
+    }).join('');
+    const sc = SIM.SCENARIOS[st.sc];
+    $('kpiNote').textContent = 'Scenario ' + sc.key + ', ' + sc.name + '. Both controllers see the same weather, load, outage and job queue. Results are for this one simulated evening.';
+    cost();
+  }
+  function cost() {
+    const p = parseFloat($('price').value) || 0; const b = st.R.base.kpi.genL * p, n = st.R.nex.kpi.genL * p;
+    $('cost').textContent = 'Diesel cost this evening: baseline R' + Math.round(b) + ', Nexus R' + Math.round(n);
+  }
+
+  // ---------- frame loop ----------
+  function frame(force) {
+    const i = Math.max(0, Math.min(N - 1, Math.floor(st.m)));
+    $('clock').textContent = SIM.fmt(i); $('scrub').value = i;
+    const x = xs(i); const ph = $('ph'); if (ph) { ph.setAttribute('x1', x); ph.setAttribute('x2', x); }
+    const cp = $('cpr'); if (cp) cp.setAttribute('width', x);
+    if (!force && frame.last === i) return; frame.last = i;
+    panel($('pBase'), st.R.base, 'b', i); panel($('pNex'), st.R.nex, 'n', i); logs(i);
+  }
+  function tick(ts) {
+    if (!st.playing) return;
+    const dt = Math.min(0.1, (ts - st.last) / 1000); st.last = ts;
+    st.m += dt * parseFloat($('speed').value);
+    if (st.m >= N - 1) { st.m = N - 1; st.playing = false; $('bPlay').textContent = 'Replay'; }
+    frame(); if (st.playing) requestAnimationFrame(tick);
+  }
+  function play() {
+    if (st.m >= N - 1) st.m = 0;
+    st.playing = !st.playing; $('bPlay').textContent = st.playing ? 'Pause' : 'Play';
+    if (st.playing) { st.last = performance.now(); requestAnimationFrame(tick); }
+  }
+  $('bPlay').addEventListener('click', play);
+  $('bRestart').addEventListener('click', () => { st.m = 0; st.playing = false; $('bPlay').textContent = 'Play'; frame(true); });
+  $('bEnd').addEventListener('click', () => { st.m = N - 1; st.playing = false; $('bPlay').textContent = 'Replay'; frame(true); });
+  $('bNext').addEventListener('click', () => {
+    const cur = Math.floor(st.m);
+    const nx = st.R.nex.log.find(l => l.kind === 'decision' && l.m > cur + 0);
+    st.playing = false; $('bPlay').textContent = 'Play';
+    st.m = nx ? nx.m : N - 1; frame(true);
+  });
+  $('scrub').addEventListener('input', e => { st.m = parseFloat(e.target.value); frame(true); });
+  $('price').addEventListener('input', cost);
+  document.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|SELECT|BUTTON/.test(e.target.tagName)) { e.preventDefault(); play(); } });
+  $('assump').innerHTML = SIM.ASSUMPTIONS.map(a => '<tr><td>' + a[0] + '</td><td>' + a[1] + '</td></tr>').join('');
+  setScenario('A');
+})();
+</script>
+
+</body></html>

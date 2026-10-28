@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Masana Nexus Digital Twin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#EEE9DD;--paper2:#E6E0D1;--ink:#1C1A15;--ink2:#5F594C;--rule:#CFC8B6;
+  --sun:#C77700;--sunbg:#F1D9A8;--slate:#56606A;--brick:#B0301B;--moss:#4D6A2A;
+  --f-head:'Bricolage Grotesque','Arial Narrow',system-ui,sans-serif;
+  --f-body:'Public Sans','Segoe UI',system-ui,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --paper:#16140F;--paper2:#1F1C15;--ink:#EDE7D6;--ink2:#A39B86;--rule:#363124;
+  --sun:#F2A93B;--sunbg:#3A2C10;--slate:#8C98A4;--brick:#FF7A5F;--moss:#9CC25E}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 var(--f-body)}
+.app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+/* ---------- rail ---------- */
+.rail{border-right:2px solid var(--ink);padding:22px 18px;display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{font:700 30px/0.95 var(--f-head);letter-spacing:-.02em}
+.brand i{font-style:normal;color:var(--sun)}
+.site{font:500 12px var(--f-mono);color:var(--ink2);text-transform:uppercase;letter-spacing:.08em}
+.sync{font:500 12px var(--f-mono);display:flex;gap:8px;align-items:center}
+.sync b{width:9px;height:9px;background:var(--moss);display:inline-block}
+.sync.bad b{background:var(--brick);animation:bl 1s steps(2) infinite}.sync.bad{color:var(--brick)}
+@keyframes bl{50%{opacity:.2}}
+.clock{font:500 38px/1 var(--f-mono);letter-spacing:-.03em}.clock small{display:block;font-size:11px;color:var(--ink2);letter-spacing:.08em;text-transform:uppercase;margin-top:4px}
+.lab{font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-bottom:6px}
+.seg{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink)}
+.seg button{border:0;background:transparent;color:var(--ink);font:600 12px var(--f-body);padding:9px 4px;cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.nav a{display:block;font:600 14px var(--f-head);color:var(--ink);text-decoration:none;padding:5px 0;border-bottom:1px solid var(--rule)}
+.nav a.cur{color:var(--sun)}.nav a:hover{color:var(--sun)}
+.inject{margin-top:auto}
+.inject button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--rule);background:transparent;color:var(--ink);font:400 12.5px var(--f-body);padding:7px 0;cursor:pointer}
+.inject button:hover{color:var(--sun);padding-left:4px}
+.inject button:focus-visible,.seg button:focus-visible{outline:2px solid var(--sun);outline-offset:2px}
+.inject small{display:block;color:var(--ink2);font-size:11px;margin-top:8px}
+/* ---------- main ---------- */
+main{padding:22px 30px 40px;min-width:0}
+.hero{display:grid;grid-template-columns:auto 1fr;gap:6px 36px;align-items:end;padding-bottom:22px;border-bottom:2px solid var(--ink)}
+.num{font:700 120px/0.8 var(--f-head);letter-spacing:-.05em}.num sup{font-size:40px;letter-spacing:0;vertical-align:top;margin-left:4px;color:var(--ink2)}
+.num.low{color:var(--brick)}
+.hero .cap{font:600 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-top:12px}
+.gwrap{min-width:0}
+#gauge{width:100%;height:78px;display:block}
+.story{margin:10px 0 0;font:500 19px/1.35 var(--f-head);max-width:62ch}
+.story em{font-style:normal;background:var(--sunbg);padding:0 3px}
+.strip{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--ink)}
+.strip div{padding:14px 14px 12px 0;margin-right:14px;border-right:1px solid var(--rule)}.strip div:last-child{border:0}
+.strip small{display:block;font:600 11px var(--f-body);letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.strip b{font:500 26px/1.15 var(--f-mono);letter-spacing:-.03em}.strip b u{text-decoration:none;font-size:12px;color:var(--ink2);margin-left:3px}
+.strip span{display:block;font:400 12px var(--f-mono);color:var(--ink2)}
+.bad{color:var(--brick)}.good{color:var(--moss)}
+section.blk{padding-top:18px}
+h2{font:700 15px var(--f-head);margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;border-top:2px solid var(--ink);padding-top:8px}
+h2 span{font:400 11px var(--f-mono);color:var(--ink2);letter-spacing:.04em}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:34px}
+.three{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:34px}
+canvas{width:100%;height:200px;display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:5px 0;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}th{font-weight:500;color:var(--ink2)}
+td.r,th.r{text-align:right;font-family:var(--f-mono)}
+.dl div{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--rule)}
+.dl dt{color:var(--ink2)}.dl dd{margin:0;font-family:var(--f-mono);text-align:right}
+.demo{font:400 11.5px var(--f-mono);color:var(--ink2);margin-top:10px}
+.tier{padding:7px 0;border-bottom:1px solid var(--rule)}.tier div{display:flex;justify-content:space-between}
+.tier i{display:flex;gap:2px;margin-top:5px}.tier i s{height:7px;flex:1;background:var(--rule)}.tier i s.f{background:var(--sun)}.tier i s.p{background:var(--ink)}
+.led{display:flex;flex-direction:column;max-height:560px;overflow:auto}
+.led div{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule)}
+.led time{font:500 13px var(--f-mono);color:var(--sun)}.led div.fb time{color:var(--brick)}
+.led b{display:block;font:600 13.5px/1.3 var(--f-head)}.led span{font-size:12px;color:var(--ink2)}
+.empty{color:var(--ink2);padding:8px 0}
+@media(max-width:1000px){.app{grid-template-columns:1fr}.rail{position:static;height:auto;border-right:0;border-bottom:2px solid var(--ink);flex-direction:row;flex-wrap:wrap;align-items:flex-start}.inject{margin-top:0;width:100%}
+ .hero{grid-template-columns:1fr}.num{font-size:84px}.strip{grid-template-columns:repeat(2,1fr)}.two,.three{grid-template-columns:1fr}main{padding:18px 16px 40px}}
+</style></head><body><div class="app">
+<aside class="rail">
+  <div class="brand">Masana<br><i>Nexus</i></div>
+  <div><div class="site" id="site">site –</div><div class="sync" id="sync"><b></b><span>waiting for telemetry</span></div></div>
+  <div class="clock"><span id="clock">--:--</span><small>site clock</small></div>
+  <div><div class="lab">Control mode</div>
+    <div class="seg" role="group" aria-label="Control mode"><button id="mShadow" class="on" title="Twin only recommends">Shadow</button><button id="mCtl" title="Site applies Nexus commands while telemetry is fresh">Approved</button></div></div>
+  <nav class="nav"><a class="cur" href="/">Live twin</a><a href="/replay">Replay for judges</a></nav>
+  <div class="inject"><div class="lab">Inject event · demo only</div><div id="ev"></div><small>A real site ignores these.</small></div>
+</aside>
+<main>
+  <section class="hero">
+    <div><div class="num" id="soc">--<sup>%</sup></div><div class="cap">battery charge · twin estimate</div></div>
+    <div class="gwrap"><svg id="gauge" viewBox="0 0 700 78" preserveAspectRatio="none"></svg><p class="story" id="story">Waiting for the first reading from the site.</p></div>
+  </section>
+  <section class="strip">
+    <div><small>Solar</small><b id="pv">–</b><span id="pv2"></span></div>
+    <div><small>Site load</small><b id="load">–</b><span id="load2"></span></div>
+    <div><small>Grid</small><b id="grid">–</b><span id="gen"></span></div>
+    <div><small>Diesel</small><b id="fuel">–</b><span id="fuel2"></span></div>
+    <div><small>Battery temp</small><b id="temp">–</b><span>AI jobs pause above 40 °C</span></div>
+    <div><small>Reserve left</small><b id="ttr">–</b><span>to the 20% floor</span></div>
+  </section>
+  <section class="blk two">
+    <div><h2>Twin against sensor <span>battery %</span></h2><canvas id="c1"></canvas></div>
+    <div><h2>If nothing changes, next 4 h <span>what-if from live state</span></h2><canvas id="c2"></canvas><table id="whatif"></table></div>
+  </section>
+  <section class="blk three">
+    <div><h2>Twin health</h2><dl class="dl" id="sync_t"></dl><div class="demo" id="truth"></div></div>
+    <div><h2>Service tiers</h2><div id="tiers"></div><h2 style="margin-top:16px">AI job queue</h2><table id="jobs"></table></div>
+    <div><h2>Decision ledger <span>why, how sure, how to undo</span></h2><div class="led" id="rcpt"></div></div>
+  </section>
+</main></div>
+<script>
+const $=id=>document.getElementById(id),css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const EV=[['low_fuel','Scenario B · remote, 8 L fuel'],['scenario_c','Scenario C · outage + frozen sensor'],['grid_off','Drop the grid'],['grid_on','Restore the grid'],['cloud','Cloud cover, 4 h'],['heat','Heatwave, 4 h'],['jobs','AI job burst'],['dropout','Cut telemetry'],['reset','Reset site']];
+EV.forEach(([e,l])=>{const b=document.createElement('button');b.textContent=l;b.onclick=()=>post('/api/inject',{event:e});$('ev').appendChild(b)});
+$('mShadow').onclick=()=>post('/api/control',{on:false});$('mCtl').onclick=()=>post('/api/control',{on:true});
+async function post(u,b){await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)})}
+const hm=h=>{const m=Math.round(h*60);return String(Math.floor(m/60)%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+function gauge(est,sensor,floor){const n=50,w=700/n;let s='';
+ for(let i=0;i<n;i++){const v=(i+1)*2,on=v<=est+1;s+=`<rect x="${i*w+1}" y="26" width="${w-3}" height="40" fill="${on?(est<=floor?css('--brick'):css('--sun')):css('--rule')}"/>`}
+ const fx=floor/100*700;s+=`<line x1="${fx}" x2="${fx}" y1="16" y2="72" stroke="${css('--ink')}" stroke-width="2"/><text x="${fx+4}" y="12" font-size="11" fill="${css('--ink2')}" font-family="JetBrains Mono,monospace">20% floor</text>`;
+ const sx=Math.max(4,Math.min(696,sensor/100*700));s+=`<path d="M${sx-6} 76 L${sx+6} 76 L${sx} 66 Z" fill="${css('--ink')}"/><text x="${Math.min(sx+9,640)}" y="76" font-size="11" fill="${css('--ink2')}" font-family="JetBrains Mono,monospace">sensor</text>`;
+ $('gauge').innerHTML=s}
+function chart(cv,series,ymin,ymax,floor){const d=devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;cv.width=w*d;cv.height=h*d;const g=cv.getContext('2d');g.scale(d,d);
+ const L=30,B=6,T=8,R=58,pw=w-L-R,ph=h-T-B;g.font='11px JetBrains Mono,monospace';g.lineWidth=1;
+ for(let v=ymin;v<=ymax;v+=25){const y=T+ph*(1-(v-ymin)/(ymax-ymin));g.strokeStyle=css('--rule');g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.fillStyle=css('--ink2');g.fillText(v,2,y+4)}
+ if(floor!=null){const y=T+ph*(1-(floor-ymin)/(ymax-ymin));g.strokeStyle=css('--ink');g.lineWidth=1.5;g.beginPath();g.moveTo(L,y);g.lineTo(w-R,y);g.stroke();g.fillStyle=css('--ink');g.fillText('floor',w-R+4,y+4)}
+ series.forEach(s=>{if(!s.d.length)return;g.strokeStyle=css(s.c);g.lineWidth=s.w||2;g.setLineDash(s.dash||[]);g.beginPath();let lx=0,ly=0;
+  s.d.forEach((v,i)=>{const x=L+pw*i/Math.max(1,s.d.length-1),y=T+ph*(1-(Math.min(ymax,Math.max(ymin,v))-ymin)/(ymax-ymin));i?g.lineTo(x,y):g.moveTo(x,y);lx=x;ly=y});g.stroke();g.setLineDash([]);
+  g.fillStyle=css(s.c);g.fillText(s.t,lx+5,ly+(s.dy||4))})}
+const row=(a,b,c)=>c===undefined?`<tr><td>${a}</td><td class="r">${b}</td></tr>`:`<tr><td>${a}</td><td class="r">${b}</td><td class="r">${c}</td></tr>`;
+function story(d){const t=d.telemetry,ttr=d.rec.ttr,r=d.rec.receipt;let p=[];
+ if(d.stale)return `No reading for <em>${d.age_s} s</em>. The twin has dropped to its cautious fallback and has stopped sending commands, so the site is running on its own legacy rules.`;
+ p.push(t.grid?'Grid is up.':'Grid is <em>down</em>, running on battery'+(t.pv_kw>0.3?' and solar.':'.'));
+ if(!t.grid&&ttr>=0)p.push(ttr>=120?'Reserve holds for more than two hours.':`About <em>${ttr} min</em> until the battery reaches its 20% floor.`);
+ if(d.suspect)p.push('The charge sensor looks frozen, so the twin is reading the battery from physics instead.');
+ p.push((d.control?'Applying: ':'Recommending: ')+r.action.replace(/ \[SoC sensor frozen: dead-reckoning\]/,'')+'.');return p.join(' ')}
+async function tick(){let d;try{d=await (await fetch('/api/state')).json()}catch(e){return}
+ if(!d.synced)return;const t=d.telemetry,tw=d.twin,p=d.proj,q=d.quality;
+ $('mShadow').classList.toggle('on',!d.control);$('mCtl').classList.toggle('on',d.control);
+ $('site').textContent=d.site_id;$('clock').textContent=hm(d.clock);
+ const sy=$('sync');sy.className='sync'+(d.stale?' bad':'');sy.querySelector('span').textContent=d.stale?`STALE · ${d.age_s}s silent`:`synced · ${d.age_s}s ago`;
+ const so=$('soc');so.innerHTML=Math.round(tw.soc_est)+'<sup>%</sup>';so.className='num'+(tw.soc_est<=22?' low':'');
+ gauge(tw.soc_est,t.soc_pct,20);$('story').innerHTML=story(d);
+ $('pv').innerHTML=t.pv_kw.toFixed(1)+'<u>kW</u>';$('pv2').textContent='learned ratio '+tw.solar_ratio;
+ $('load').innerHTML=t.load_kw.toFixed(1)+'<u>kW</u>';$('load2').textContent='data served '+Math.round(t.data_frac*100)+'%';
+ $('grid').textContent=t.grid?'ON':'OFF';$('grid').className=t.grid?'good':'bad';$('gen').textContent='generator '+(t.gen_on?'running':'off');
+ $('fuel').innerHTML=(d.fuel_l==null?'–':d.fuel_l)+'<u>L</u>';$('fuel2').textContent=d.fuel_l<=0?'tank empty':'';
+ $('temp').innerHTML=Math.round(t.temp_c)+'<u>°C</u>';$('temp').className=t.temp_c>40?'bad':'';
+ const ttr=d.rec.ttr;$('ttr').innerHTML=ttr<0?'n/a':ttr>=120?'&gt;2<u>h</u>':ttr+'<u>min</u>';$('ttr').className=ttr>=0&&ttr<75?'bad':'';
+ chart($('c1'),[{d:d.hist.map(x=>x.rep),c:'--slate',w:1.5,t:'sensor',dy:-6},{d:d.hist.map(x=>x.est),c:'--sun',w:2.5,t:'twin',dy:8}],0,100,20);
+ chart($('c2'),[{d:p.legacy.series,c:'--slate',w:2,dash:[5,4],t:'legacy',dy:-4},{d:p.nexus.series,c:'--sun',w:2.5,t:'Nexus',dy:9}],0,100,20);
+ $('whatif').innerHTML='<tr><th></th><th class="r">Legacy</th><th class="r">Nexus</th></tr>'+row('Generator hours',p.legacy.gen_hours,p.nexus.gen_hours)+row('Lowest charge %',p.legacy.min_soc,p.nexus.min_soc)+row('Blackout min',p.legacy.blackout_min,p.nexus.blackout_min)+row('Data served %',p.legacy.data_pct,p.nexus.data_pct);
+ const dl=(a,b)=>`<div><dt>${a}</dt><dd>${b}</dd></div>`;
+ $('sync_t').innerHTML=dl('Fidelity (mean error)',tw.fidelity_mae_pct==null?'–':tw.fidelity_mae_pct+' % SoC')+dl('Battery capacity',`${tw.cap_initial} → <b>${tw.cap_belief} kWh</b>`)+dl('Solar derate learned',tw.solar_ratio)+dl('Samples ok / rejected',q.accepted+' / '+q.rejected)+dl('SoC sensor',d.suspect?'<b class="bad">frozen</b>':'ok')+dl('Site is running',t.mode==='nexus'?'Nexus commands':'legacy rules')+(d.events.length?dl('Last twin event',d.events[0]):'');
+ $('truth').textContent=t._truth?`Emulator truth: ${t._truth.cap_kwh} kWh · derate ${t._truth.derate} · true charge ${t._truth.soc_true}% · blackout so far ${Math.round(t._truth.blackout_min_total)} min`:'';
+ const tier=(n,pct,note,hard)=>{let b='';for(let i=0;i<10;i++)b+=`<s class="${i<Math.round(pct/10)?(hard?'p':'f'):''}"></s>`;return `<div class="tier"><div><span>${n}</span><span>${note}</span></div><i>${b}</i></div>`};
+ $('tiers').innerHTML=tier('1 · MoMo / USSD',100,'never shed',1)+tier('2 · Voice / SMS',100,'never shed',1)+tier('3 · Data / video',t.data_frac*100,t.data_frac===0?'shed · critical-only':Math.round(t.data_frac*100)+'% served')+`<div class="demo">${t.blackout?'<span class="bad">SITE BLACKOUT</span>':'All priority tiers up'}</div>`;
+ $('jobs').innerHTML=t.jobs.length?'<tr><th>Job</th><th class="r">Left</th><th class="r">Due in</th><th class="r">State</th></tr>'+t.jobs.map(j=>row(j.id,j.left_h.toFixed(2)+' h',((j.deadline_ts-t.ts)/3600).toFixed(1)+' h').replace('</tr>',`<td class="r">${j.running?'running':'deferred'}</td></tr>`)).join(''):'<tr><td class="empty">queue empty</td></tr>';
+ $('rcpt').innerHTML=d.receipts.slice(0,7).map(r=>`<div class="${r.mode==='fallback'?'fb':''}"><time>${hm(r.clock)}</time><p style="margin:0"><b>${r.action}</b><span>${r.reason}. Confidence ${Math.round(r.confidence*100)}%. ${r.expected}. Undo: ${r.rollback}.</span></p></div>`).join('')||'<div class="empty">no decisions yet</div>';
+}
+setInterval(tick,700);tick();addEventListener('resize',tick);
+</script></body></html>
